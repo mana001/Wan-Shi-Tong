@@ -88,6 +88,7 @@ client.on('interactionCreate', async interaction => {
         const card2 = memoryGame.cards[secondIdx];
 
         if (card1.name === card2.name) {
+            // Correct match! Icons stay visible and locked as matched
             card1.matched = true;
             card2.matched = true;
             memoryGame.matchedPairs += 1;
@@ -125,6 +126,7 @@ client.on('interactionCreate', async interaction => {
                 });
             }
         } else {
+            // Wrong match: Flip back to ⬛ after a short delay
             setTimeout(async () => {
                 memoryGame.flippedIndices = [];
                 if (memoryGame.mode === '2player') {
@@ -147,12 +149,14 @@ async function updateMemoryGrid(interaction, memoryGame, isWon) {
             const button = new ButtonBuilder().setCustomId(`mem_${j}`);
 
             if (card.matched) {
-                button.setEmoji('✅').setStyle(ButtonStyle.Success).setDisabled(true);
+                // If matched, show the icon permanently with a green success state
+                button.setLabel(card.name.toUpperCase()).setStyle(ButtonStyle.Success).setDisabled(true);
             } else if (memoryGame.flippedIndices.includes(j)) {
-                // Displays the icon name (e.g., icon0, icon1...) when flipped
+                // When clicked/flipped from ⬛, show the specific icon (icon0 to icon17)
                 button.setLabel(card.name.toUpperCase()).setStyle(ButtonStyle.Primary);
             } else {
-                button.setEmoji('🟦').setStyle(ButtonStyle.Secondary);
+                // Hidden card back state (⬛ tile)
+                button.setLabel('⬛').setStyle(ButtonStyle.Secondary);
             }
             row.addComponents(button);
         }
@@ -205,7 +209,7 @@ client.on('messageCreate', async message => {
         const players = Array.from(mentions.keys());
         const mode = players.length >= 2 ? '2player' : 'solo';
 
-        // Build deck using icon0 through icon17 (two of each for pairs = 36 cards)
+        // Build deck using icon0 through icon17 (two of each for 36 cards total)
         let deck = [];
         for (let i = 0; i <= 17; i++) {
             const cardName = `icon${i}`;
@@ -236,7 +240,7 @@ client.on('messageCreate', async message => {
                 row.addComponents(
                     new ButtonBuilder()
                         .setCustomId(`mem_${j}`)
-                        .setEmoji('🟦')
+                        .setLabel('⬛')
                         .setStyle(ButtonStyle.Secondary)
                 );
             }
@@ -244,7 +248,7 @@ client.on('messageCreate', async message => {
         }
 
         let initDesc = mode === '2player' 
-            ? `👥 **2-Player Versus Avatar Trial!**\nParticipants: <@${players[0]}> vs <@${players[1]}>\n👉 First turn: <@${players[0]}>\n\nClick the blue cards to find all **18 matching pairs**!`
+            ? `👥 **2-Player Versus Avatar Trial!**\nParticipants: <@${players[0]}> vs <@${players[1]}>\n👉 First turn: <@${players[0]}>\n\nClick the ⬛ tiles to reveal icons and find all **18 matching pairs**!`
             : `👤 **Solo Avatar Trial Mode!**\nPlayer: <@${players[0]}>\n\nFind all pairs in **20 attempts or fewer** to win Wan Shi Tong's Crown! 👑`;
 
         const embed = new EmbedBuilder()

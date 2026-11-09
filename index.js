@@ -50,7 +50,6 @@ client.once('ready', async () => {
 });
 
 client.on('interactionCreate', async interaction => {
-    // --- MEMORY GAME BUTTON HANDLER ---
     if (!interaction.isButton() || !interaction.customId.startsWith('mem_')) return;
 
     const gameId = interaction.message.id;
@@ -88,7 +87,6 @@ client.on('interactionCreate', async interaction => {
         const card2 = memoryGame.cards[secondIdx];
 
         if (card1.name === card2.name) {
-            // Correct match! Icons stay visible and locked as matched
             card1.matched = true;
             card2.matched = true;
             memoryGame.matchedPairs += 1;
@@ -103,30 +101,42 @@ client.on('interactionCreate', async interaction => {
                 await updateMemoryGrid(interaction, memoryGame, true);
                 activeMemoryGames.delete(gameId);
 
-                let winText = `🦉 **Wan Shi Tong's Avatar Trial Completed!**\n📊 **Total Attempts / Turns:** \`${memoryGame.attempts}\``;
-                
+                let rankTitle = 'WINNER';
+                let gifFile = './winner.gif';
+
                 if (memoryGame.mode === 'solo') {
-                    if (memoryGame.attempts <= 20) {
-                        winText += `\n\n👑 **CROWNED WINNER!** <@${memoryGame.players[0]}> matched all 18 pairs in **${memoryGame.attempts} attempts** (<= 20 attempts)! A true scholar worthy of the Spirit Library! 🌟`;
+                    if (memoryGame.attempts < 6) {
+                        rankTitle = '🌟 LEGEND';
+                        gifFile = './legend.gif';
+                    } else if (memoryGame.attempts === 6) {
+                        rankTitle = '🏆 WINNER';
+                        gifFile = './winner.gif';
+                    } else if (memoryGame.attempts >= 12) {
+                        rankTitle = '💀 LOSER';
+                        gifFile = './loser.gif';
                     } else {
-                        winText += `\n\n🎯 Impressive knowledge, <@${memoryGame.players[0]}>! You found all pairs in ${memoryGame.attempts} attempts.`;
+                        rankTitle = '🏆 WINNER';
+                        gifFile = './winner.gif';
                     }
-                } else if (memoryGame.mode === '2player') {
+                }
+
+                let winText = `🦉 **Wan Shi Tong's Archive #${memoryGame.archiveNum} Completed!**\n📊 **Total Attempts:** \`${memoryGame.attempts}\`\n\n🎯 **Rank Achieved:** **${rankTitle}**`;
+                
+                if (memoryGame.mode === '2player') {
                     const p1Score = memoryGame.scores[memoryGame.players[0]] || 0;
                     const p2Score = memoryGame.scores[memoryGame.players[1]] || 0;
                     let winner = p1Score > p2Score ? `<@${memoryGame.players[0]}>` : p2Score > p1Score ? `<@${memoryGame.players[1]}>` : 'It\'s a tie';
-                    winText += `\n\n🏆 **Winner:** ${winner}!\nScores: <@${memoryGame.players[0]}> (${p1Score}) vs <@${memoryGame.players[1]}> (${p2Score})`;
+                    winText = `🦉 **Wan Shi Tong's Archive #${memoryGame.archiveNum} Completed!**\n🏆 **Winner:** ${winner}!\nScores: <@${memoryGame.players[0]}> (${p1Score}) vs <@${memoryGame.players[1]}> (${p2Score})`;
                 }
 
                 return interaction.followUp({
                     content: winText,
-                    files: ['./win.gif']
+                    files: [gifFile]
                 }).catch(() => {
                     return interaction.followUp({ content: winText });
                 });
             }
         } else {
-            // Wrong match: Flip back to ⬛ after a short delay
             setTimeout(async () => {
                 memoryGame.flippedIndices = [];
                 if (memoryGame.mode === '2player') {
@@ -140,22 +150,20 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
+// Helper function to build 3 rows of 4 buttons (12 cards total)
 async function updateMemoryGrid(interaction, memoryGame, isWon) {
     const rows = [];
-    for (let i = 0; i < memoryGame.cards.length; i += 5) {
+    for (let i = 0; i < memoryGame.cards.length; i += 4) {
         const row = new ActionRowBuilder();
-        for (let j = i; j < i + 5 && j < memoryGame.cards.length; j++) {
+        for (let j = i; j < i + 4 && j < memoryGame.cards.length; j++) {
             const card = memoryGame.cards[j];
             const button = new ButtonBuilder().setCustomId(`mem_${j}`);
 
             if (card.matched) {
-                // If matched, show the icon permanently with a green success state
                 button.setLabel(card.name.toUpperCase()).setStyle(ButtonStyle.Success).setDisabled(true);
             } else if (memoryGame.flippedIndices.includes(j)) {
-                // When clicked/flipped from ⬛, show the specific icon (icon0 to icon17)
                 button.setLabel(card.name.toUpperCase()).setStyle(ButtonStyle.Primary);
             } else {
-                // Hidden card back state (⬛ tile)
                 button.setLabel('⬛').setStyle(ButtonStyle.Secondary);
             }
             row.addComponents(button);
@@ -164,8 +172,8 @@ async function updateMemoryGrid(interaction, memoryGame, isWon) {
     }
 
     let descText = isWon 
-        ? `🎉 **All 18 pairs found in ${memoryGame.attempts} attempts!**` 
-        : `Match all 18 pairs! Total Attempts: **${memoryGame.attempts}**`;
+        ? `🎉 **Archive Completed in ${memoryGame.attempts} attempts!**` 
+        : `Match all 6 pairs! Live Attempts: **${memoryGame.attempts}**`;
 
     if (memoryGame.mode === '2player') {
         const p1 = memoryGame.players[0];
@@ -177,7 +185,7 @@ async function updateMemoryGrid(interaction, memoryGame, isWon) {
     }
 
     const embed = new EmbedBuilder()
-        .setTitle('🦉 AVATAR TRIAL: WAN SHI TONG\'S MEMORY ARCHIVE')
+        .setTitle(`🦉 AVATAR TRIAL: WAN SHI TONG'S ARCHIVE #${memoryGame.archiveNum}`)
         .setColor(isWon ? '#2ed573' : '#70a1ff')
         .setDescription(`*“Humans always think they know so much, yet your minds are easily tested by my archive. Prove your intellect by uncovering the hidden knowledge within these cards.”*\n\n` + descText);
 
@@ -195,18 +203,21 @@ client.on('messageCreate', async message => {
     const contentLower = content.toLowerCase().trim();
     const isHost = message.author.username === '0ladybunny';
 
-    // --- MEMORY GAME START COMMAND ---
     if (contentLower.startsWith('!memory')) {
         if (!isHost) {
             return message.reply('⛔ Only **0ladybunny** can start Wan Shi Tong\'s memory trial.');
         }
 
         try {
-            // Extract user IDs from mentions OR parse raw discord mention tags from mobile text
+            const args = content.replace('!memory', '').trim().split(/\s+/);
+            let archiveNum = 1;
+
+            if (['1', '2', '3'].includes(args[0])) {
+                archiveNum = parseInt(args[0]);
+            }
+
             let players = Array.from(message.mentions.users.keys());
-            
             if (players.length === 0) {
-                // Regex fallback to catch mobile tags like <@123456789>
                 const matches = content.match(/<@!?(\d+)>/g);
                 if (matches) {
                     players = matches.map(m => m.replace(/<@!?|>/g, ''));
@@ -214,19 +225,22 @@ client.on('messageCreate', async message => {
             }
 
             if (players.length === 0) {
-                return message.reply('⚠️ **Debug Notice:** No valid user detected. Make sure to tap the user name from the mobile popup list so it tags properly!');
+                return message.reply('⚠️ Please specify an archive and mention player(s)!\n*Examples:*\n`!memory @Player` (Archive 1)\n`!memory 2 @Player1 @Player2` (Archive 2, Versus)');
             }
 
             const mode = players.length >= 2 ? '2player' : 'solo';
 
-            // Build deck using icon0 through icon17 (two of each for 36 cards total)
+            let startIndex = 0;
+            let endIndex = 5;
+            if (archiveNum === 2) { startIndex = 6; endIndex = 11; }
+            if (archiveNum === 3) { startIndex = 12; endIndex = 17; }
+
             let deck = [];
-            for (let i = 0; i <= 17; i++) {
+            for (let i = startIndex; i <= endIndex; i++) {
                 const cardName = `icon${i}`;
                 deck.push({ name: cardName }, { name: cardName });
             }
             
-            // Shuffle deck
             deck.sort(() => Math.random() - 0.5);
 
             const cards = deck.map(c => ({ name: c.name, matched: false }));
@@ -234,8 +248,9 @@ client.on('messageCreate', async message => {
                 cards,
                 flippedIndices: [],
                 matchedPairs: 0,
-                totalPairs: 18,
+                totalPairs: 6,
                 attempts: 0,
+                archiveNum,
                 mode,
                 players,
                 allowedUserIds: players,
@@ -244,9 +259,9 @@ client.on('messageCreate', async message => {
             };
 
             const rows = [];
-            for (let i = 0; i < cards.length; i += 5) {
+            for (let i = 0; i < cards.length; i += 4) {
                 const row = new ActionRowBuilder();
-                for (let j = i; j < i + 5 && j < cards.length; j++) {
+                for (let j = i; j < i + 4 && j < cards.length; j++) {
                     row.addComponents(
                         new ButtonBuilder()
                             .setCustomId(`mem_${j}`)
@@ -258,11 +273,11 @@ client.on('messageCreate', async message => {
             }
 
             let initDesc = mode === '2player' 
-                ? `👥 **2-Player Versus Avatar Trial!**\nParticipants: <@${players[0]}> vs <@${players[1]}>\n👉 First turn: <@${players[0]}>\n\nClick the ⬛ tiles to reveal icons and find all **18 matching pairs**!`
-                : `👤 **Solo Avatar Trial Mode!**\nPlayer: <@${players[0]}>\n\nFind all pairs in **20 attempts or fewer** to win Wan Shi Tong's Crown! 👑`;
+                ? `👥 **2-Player Versus Trial (Archive #${archiveNum})!**\nParticipants: <@${players[0]}> vs <@${players[1]}>\n👉 First turn: <@${players[0]}>\n\nClick the ⬛ tiles to find all **6 matching pairs**!`
+                : `👤 **Solo Trial Mode (Archive #${archiveNum})!**\nPlayer: <@${players[0]}>\n\nFind all 6 pairs in your 3x4 archive grid! 🦉\n*(<6 attempts = LEGEND | 6 attempts = WINNER | 12+ attempts = LOSER)*`;
 
             const embed = new EmbedBuilder()
-                .setTitle('🦉 AVATAR TRIAL: WAN SHI TONG\'S MEMORY ARCHIVE')
+                .setTitle(`🦉 AVATAR TRIAL: WAN SHI TONG'S ARCHIVE #${archiveNum}`)
                 .setColor('#70a1ff')
                 .setDescription(`*“Humans always think they know so much, yet your minds are easily tested by my archive. Prove your intellect by uncovering the hidden knowledge within these cards.”*\n\n` + initDesc);
 
@@ -270,7 +285,6 @@ client.on('messageCreate', async message => {
             activeMemoryGames.set(sentMsg.id, memoryGame);
 
         } catch (err) {
-            // ERROR FLAGGING: If anything crashes, the bot will post the exact error here!
             console.error('Memory Game Error:', err);
             return message.reply(`❌ **Bot Error Caught:** \`${err.message}\``);
         }

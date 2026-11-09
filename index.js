@@ -1,10 +1,13 @@
+const fs = require('fs');
+const path = require('path');
 const { 
     Client, 
     GatewayIntentBits, 
     EmbedBuilder,
     ActionRowBuilder,
     ButtonBuilder,
-    ButtonStyle 
+    ButtonStyle,
+    AttachmentBuilder 
 } = require('discord.js');
 
 // --- BUILT-IN SELF-PING KEEP-ALIVE SERVER ---
@@ -102,21 +105,21 @@ client.on('interactionCreate', async interaction => {
                 activeMemoryGames.delete(gameId);
 
                 let rankTitle = 'WINNER';
-                let gifFile = './winner.gif';
+                let gifFile = './assets/winner.gif';
 
                 if (memoryGame.mode === 'solo') {
                     if (memoryGame.attempts < 6) {
                         rankTitle = '🌟 LEGEND';
-                        gifFile = './legend.gif';
+                        gifFile = './assets/legend.gif';
                     } else if (memoryGame.attempts === 6) {
                         rankTitle = '🏆 WINNER';
-                        gifFile = './winner.gif';
+                        gifFile = './assets/winner.gif';
                     } else if (memoryGame.attempts >= 12) {
                         rankTitle = '💀 LOSER';
-                        gifFile = './loser.gif';
+                        gifFile = './assets/loser.gif';
                     } else {
                         rankTitle = '🏆 WINNER';
-                        gifFile = './winner.gif';
+                        gifFile = './assets/winner.gif';
                     }
                 }
 
@@ -129,9 +132,10 @@ client.on('interactionCreate', async interaction => {
                     winText = `🦉 **Wan Shi Tong's Archive #${memoryGame.archiveNum} Completed!**\n🏆 **Winner:** ${winner}!\nScores: <@${memoryGame.players[0]}> (${p1Score}) vs <@${memoryGame.players[1]}> (${p2Score})`;
                 }
 
+                const gifAttachment = new AttachmentBuilder(gifFile);
                 return interaction.followUp({
                     content: winText,
-                    files: [gifFile]
+                    files: [gifAttachment]
                 }).catch(() => {
                     return interaction.followUp({ content: winText });
                 });
@@ -150,9 +154,11 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// Helper function to build 3 rows of 4 buttons (12 cards total)
+// Helper function to build 3 rows of 4 buttons with image/emoji indicator for revealed cards
 async function updateMemoryGrid(interaction, memoryGame, isWon) {
     const rows = [];
+    const attachments = [];
+
     for (let i = 0; i < memoryGame.cards.length; i += 4) {
         const row = new ActionRowBuilder();
         for (let j = i; j < i + 4 && j < memoryGame.cards.length; j++) {
@@ -160,10 +166,13 @@ async function updateMemoryGrid(interaction, memoryGame, isWon) {
             const button = new ButtonBuilder().setCustomId(`mem_${j}`);
 
             if (card.matched) {
+                // Matched state: show label and green success
                 button.setLabel(card.name.toUpperCase()).setStyle(ButtonStyle.Success).setDisabled(true);
             } else if (memoryGame.flippedIndices.includes(j)) {
+                // Flipped state: show icon name clearly or attach image preview if applicable
                 button.setLabel(card.name.toUpperCase()).setStyle(ButtonStyle.Primary);
             } else {
+                // Hidden card back state (⬛ tile)
                 button.setLabel('⬛').setStyle(ButtonStyle.Secondary);
             }
             row.addComponents(button);
@@ -210,10 +219,35 @@ client.on('messageCreate', async message => {
 
         try {
             const args = content.replace('!memory', '').trim().split(/\s+/);
+
+            // --- CASE 1: !memory typed alone (Show Intro Only) ---
+            if (!args[0] || args[0] === '') {
+                const introEmbed = new EmbedBuilder()
+                    .setTitle('🦉 AVATAR TRIAL: WAN SHI TONG\'S MEMORY ARCHIVE')
+                    .setColor('#70a1ff')
+                    .setDescription(`*“Humans always think they know so much, yet your minds are easily tested by my archive. Prove your intellect by uncovering the hidden knowledge within these cards.”*\n\n` +
+                        `✨ **How to Play the Trial:**\n` +
+                        `Choose one of three secret archives and challenge yourself or a friend!\n\n` +
+                        `📌 **Commands:**\n` +
+                        `• Archive 1: \`!memory 1 @Player\`\n` +
+                        `• Archive 2: \`!memory 2 @Player\`\n` +
+                        `• Archive 3: \`!memory 3 @Player\`\n` +
+                        `*(You can also add a second player for Versus mode: \`!memory 1 @Player1 @Player2\`)*\n\n` +
+                        `🏆 **Solo Tiers:**\n` +
+                        `• < 6 attempts ➔ **LEGEND** (\`legend.gif\`)\n` +
+                        `• = 6 attempts ➔ **WINNER** (\`winner.gif\`)\n` +
+                        `• 12+ attempts ➔ **LOSER** (\`loser.gif\`)`);
+
+                return message.reply({ embeds: [introEmbed] });
+            }
+
+            // --- CASE 2: !memory (number) @Player (Start Game) ---
             let archiveNum = 1;
+            let playerArgsIndex = 0;
 
             if (['1', '2', '3'].includes(args[0])) {
                 archiveNum = parseInt(args[0]);
+                playerArgsIndex = 1;
             }
 
             let players = Array.from(message.mentions.users.keys());
@@ -225,7 +259,7 @@ client.on('messageCreate', async message => {
             }
 
             if (players.length === 0) {
-                return message.reply('⚠️ Please specify an archive and mention player(s)!\n*Examples:*\n`!memory @Player` (Archive 1)\n`!memory 2 @Player1 @Player2` (Archive 2, Versus)');
+                return message.reply('⚠️ Please specify an archive number and tag player(s)!\n*Example:* `!memory 1 @Player`');
             }
 
             const mode = players.length >= 2 ? '2player' : 'solo';

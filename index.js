@@ -158,7 +158,7 @@ client.on('interactionCreate', async interaction => {
 async function updateMemoryGrid(interaction, memoryGame, isWon) {
     const rows = [];
     const guild = interaction.guild;
-    const cardLayout = [4, 4, 4]; // Exactly 3 rows of 4 buttons (12 cards total)
+    const cardLayout = [4, 4, 4]; // 3 rows of 4 buttons
     let cardIndex = 0;
 
     for (const count of cardLayout) {
@@ -189,27 +189,20 @@ async function updateMemoryGrid(interaction, memoryGame, isWon) {
         rows.push(row);
     }
 
-    let statusHeader = isWon 
-        ? `🎉 **ARCHIVE CONQUERED SUCCESSFULLY!**` 
-        : `⚡ **ARCHIVE TRIAL IN PROGRESS** ⚡`;
-
+    let statusHeader = isWon ? `🎉 **ARCHIVE CONQUERED!**` : `⚡ **ARCHIVE TRIAL IN PROGRESS**`;
     let descText = isWon 
-        ? `All 6 pairs uncovered in **${memoryGame.attempts}** attempts!` 
-        : `Match all **6 pairs** across the 3x4 grid!\n\n📈 **Live Attempt Count:** \`${memoryGame.attempts}\``;
+        ? `Completed in **${memoryGame.attempts}** attempts!` 
+        : `📊 **Live Attempts:** \`${memoryGame.attempts}\``;
 
     if (memoryGame.mode === '2player') {
-        const p1 = memoryGame.players[0];
-        const p2 = memoryGame.players[1];
         const activeTurnUser = memoryGame.players[memoryGame.currentTurnPlayerIndex];
-        descText += `\n\n👥 **Versus Mode Active**\n👉 **Current Turn:** <@${activeTurnUser}>\n⚔️ Scores — <@${p1}>: ${memoryGame.scores[p1] || 0} | <@${p2}>: ${memoryGame.scores[p2] || 0}`;
-    } else {
-        descText += `\n\n👤 **Scholar:** <@${memoryGame.players[0]}> (Solo Trial)`;
+        descText += `\n👉 **Current Turn:** <@${activeTurnUser}>`;
     }
 
     const embed = new EmbedBuilder()
-        .setTitle(`🦉 [ ARCHIVE #${memoryGame.archiveNum} ] — SPIRIT LIBRARY TRIAL`)
+        .setTitle(`🦉 ARCHIVE #${memoryGame.archiveNum}`)
         .setColor(isWon ? '#2ed573' : '#ff4757')
-        .setDescription(`${statusHeader}\n\n*“Humans always think they know so much, yet your minds are easily tested by my archive. Prove your intellect.”*\n\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n${descText}\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬`);
+        .setDescription(`${statusHeader}\n${descText}`);
 
     if (interaction.deferred || interaction.replied) {
         await interaction.editReply({ embeds: [embed], components: rows });
@@ -233,7 +226,7 @@ client.on('messageCreate', async message => {
         try {
             const args = content.replace('!memory', '').trim().split(/\s+/);
 
-            // --- CASE 1: !memory typed alone (Show Intro / Explanation Only) ---
+            // --- CASE 1: !memory typed alone (Show Intro Only) ---
             if (!args[0] || args[0] === '') {
                 const introEmbed = new EmbedBuilder()
                     .setTitle('🦉 AVATAR TRIAL: WAN SHI TONG\'S MEMORY ARCHIVE 🦉')
@@ -241,11 +234,6 @@ client.on('messageCreate', async message => {
                     .setDescription(`*“Humans always think they know so much, yet your minds are easily tested by my vast library archives. Prove your intellect by uncovering the hidden knowledge.”*\n\n` +
                         `✨ **How to Access the Archives:**\n` +
                         `Select one of the three archives and challenge yourself or a friend!\n\n` +
-                        `📌 **Deployment Commands:**\n` +
-                        `• **Archive 1:** \`!memory 1 @Player\`\n` +
-                        `• **Archive 2:** \`!memory 2 @Player\`\n` +
-                        `• **Archive 3:** \`!memory 3 @Player\`\n` +
-                        `*(For 2-Player Versus: \`!memory 1 @Player1 @Player2\`)*\n\n` +
                         `🏆 **Scholar Ranking Tiers:**\n` +
                         `• **< 6 attempts** ➔ **LEGEND** (\`legend.gif\`)\n` +
                         `• **= 6 attempts** ➔ **WINNER** (\`winner.gif\`)\n` +
@@ -274,7 +262,6 @@ client.on('messageCreate', async message => {
 
             const mode = players.length >= 2 ? '2player' : 'solo';
 
-            // Grab the 6 custom icons for the selected archive (12 cards total / 6 pairs)
             const iconList = ARCHIVE_ICONS[archiveNum] || ARCHIVE_ICONS[1];
             let deck = [];
             iconList.forEach(iconName => {
@@ -288,7 +275,7 @@ client.on('messageCreate', async message => {
                 cards,
                 flippedIndices: [],
                 matchedPairs: 0,
-                totalPairs: 6, // 6 pairs (12 cards total)
+                totalPairs: 6,
                 attempts: 0,
                 archiveNum,
                 mode,
@@ -299,7 +286,7 @@ client.on('messageCreate', async message => {
             };
 
             const rows = [];
-            const cardLayout = [4, 4, 4]; // Exactly 3 rows of 4 buttons (12 cards total)
+            const cardLayout = [4, 4, 4];
             let cardIndex = 0;
 
             for (const count of cardLayout) {
@@ -316,14 +303,15 @@ client.on('messageCreate', async message => {
                 rows.push(row);
             }
 
-            let initDesc = mode === '2player' 
-                ? `👥 **2-Player Versus Trial (Archive #${archiveNum})!**\nParticipants: <@${players[0]}> vs <@${players[1]}>\n👉 **First Turn:** <@${players[0]}>\n\nClick the ⬛ tiles to find all **6 matching pairs** across the 3x4 grid!`
-                : `👤 **Solo Trial Mode (Archive #${archiveNum})!**\nScholar: <@${players[0]}>\n\nUncover all 6 pairs in your 3x4 archive grid! 🦉\n*(<6 attempts = LEGEND | 6 attempts = WINNER | 12+ attempts = LOSER)*`;
+            let initDesc = `⚡ **ARCHIVE TRIAL IN PROGRESS**\n📊 **Live Attempts:** \`0\``;
+            if (mode === '2player') {
+                initDesc += `\n👉 **Current Turn:** <@${players[0]}>`;
+            }
 
             const embed = new EmbedBuilder()
-                .setTitle(`🦉 [ ARCHIVE #${archiveNum} ] — SPIRIT LIBRARY TRIAL`)
+                .setTitle(`🦉 ARCHIVE #${archiveNum}`)
                 .setColor('#ff4757')
-                .setDescription(`⚡ **ARCHIVE TRIAL READY** ⚡\n\n*“Humans always think they know so much, yet your minds are easily tested by my archive. Prove your intellect.”*\n\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n${initDesc}\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬`);
+                .setDescription(initDesc);
 
             const sentMsg = await message.reply({ embeds: [embed], components: rows });
             activeMemoryGames.set(sentMsg.id, memoryGame);

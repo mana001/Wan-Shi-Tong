@@ -115,13 +115,10 @@ client.on('interactionCreate', async interaction => {
                 if (memoryGame.mode === 'solo') {
                     if (memoryGame.attempts < 6) {
                         rankTitle = '🌟 LEGEND';
-                        gifFile = './assets/legend.gif';
                     } else if (memoryGame.attempts === 6) {
                         rankTitle = '🏆 WINNER';
-                        gifFile = './assets/winner.gif';
                     } else if (memoryGame.attempts >= 12) {
                         rankTitle = '💀 LOSER';
-                        gifFile = './assets/loser.gif';
                     }
                 }
 

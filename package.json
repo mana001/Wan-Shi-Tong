@@ -1,0 +1,13 @@
+{
+  "name": "wan-shi-tong-memory-bot",
+  "version": "1.0.0",
+  "description": "Wan Shi Tong Avatar Trial Memory Matching Bot for Discord",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "express": "^4.19.2"
+  }
+}

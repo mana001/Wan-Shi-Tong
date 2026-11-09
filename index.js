@@ -226,7 +226,7 @@ client.on('messageCreate', async message => {
         try {
             const args = content.replace('!memory', '').trim().split(/\s+/);
 
-            // --- CASE 1: !memory typed alone (Show Intro Only) ---
+            // --- CASE 1: !memory typed alone (Show Intro with intro.jpg) ---
             if (!args[0] || args[0] === '') {
                 const introEmbed = new EmbedBuilder()
                     .setTitle('🦉 AVATAR TRIAL: WAN SHI TONG\'S MEMORY ARCHIVE 🦉')
@@ -237,9 +237,15 @@ client.on('messageCreate', async message => {
                         `🏆 **Scholar Ranking Tiers:**\n` +
                         `• **< 6 attempts** ➔ **LEGEND** (\`legend.gif\`)\n` +
                         `• **= 6 attempts** ➔ **WINNER** (\`winner.gif\`)\n` +
-                        `• **12+ attempts** ➔ **LOSER** (\`loser.gif\`)`);
+                        `• **12+ attempts** ➔ **LOSER** (\`loser.gif\`)`)
+                    .setImage('attachment://intro.jpg');
 
-                return message.reply({ embeds: [introEmbed] });
+                const introAttachment = new AttachmentBuilder('./assets/intro.jpg');
+
+                return message.reply({ embeds: [introEmbed], files: [introAttachment] }).catch(() => {
+                    // Fallback if intro.jpg is in root directory instead of assets folder
+                    return message.reply({ embeds: [introEmbed], files: [new AttachmentBuilder('./intro.jpg')] });
+                });
             }
 
             // --- CASE 2: !memory (number) @Player (Start Game Board Only) ---

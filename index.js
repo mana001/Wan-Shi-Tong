@@ -197,66 +197,83 @@ client.on('messageCreate', async message => {
 
     // --- MEMORY GAME START COMMAND ---
     if (contentLower.startsWith('!memory')) {
-        if (!isHost) return message.reply('⛔ Only **0ladybunny** can start Wan Shi Tong\'s memory trial.');
-
-        // Grab all mentioned users reliably (works for desktop & mobile)
-        const players = Array.from(message.mentions.users.keys());
-        
-        if (players.length === 0) {
-            return message.reply('⚠️ Please mention at least one player for the Avatar Trial!\n*Solo:* `!memory @Player`\n*Versus:* `!memory @Player1 @Player2`');
+        if (!isHost) {
+            return message.reply('⛔ Only **0ladybunny** can start Wan Shi Tong\'s memory trial.');
         }
 
-        const mode = players.length >= 2 ? '2player' : 'solo';
-
-        // Build deck using icon0 through icon17 (two of each for 36 cards total)
-        let deck = [];
-        for (let i = 0; i <= 17; i++) {
-            const cardName = `icon${i}`;
-            deck.push({ name: cardName }, { name: cardName });
-        }
-        
-        // Shuffle deck
-        deck.sort(() => Math.random() - 0.5);
-
-        const cards = deck.map(c => ({ name: c.name, matched: false }));
-        const memoryGame = {
-            cards,
-            flippedIndices: [],
-            matchedPairs: 0,
-            totalPairs: 18,
-            attempts: 0,
-            mode,
-            players,
-            allowedUserIds: players,
-            currentTurnPlayerIndex: 0,
-            scores: {}
-        };
-
-        const rows = [];
-        for (let i = 0; i < cards.length; i += 5) {
-            const row = new ActionRowBuilder();
-            for (let j = i; j < i + 5 && j < cards.length; j++) {
-                row.addComponents(
-                    new ButtonBuilder()
-                        .setCustomId(`mem_${j}`)
-                        .setLabel('⬛')
-                        .setStyle(ButtonStyle.Secondary)
-                );
+        try {
+            // Extract user IDs from mentions OR parse raw discord mention tags from mobile text
+            let players = Array.from(message.mentions.users.keys());
+            
+            if (players.length === 0) {
+                // Regex fallback to catch mobile tags like <@123456789>
+                const matches = content.match(/<@!?(\d+)>/g);
+                if (matches) {
+                    players = matches.map(m => m.replace(/<@!?|>/g, ''));
+                }
             }
-            rows.push(row);
+
+            if (players.length === 0) {
+                return message.reply('⚠️ **Debug Notice:** No valid user detected. Make sure to tap the user name from the mobile popup list so it tags properly!');
+            }
+
+            const mode = players.length >= 2 ? '2player' : 'solo';
+
+            // Build deck using icon0 through icon17 (two of each for 36 cards total)
+            let deck = [];
+            for (let i = 0; i <= 17; i++) {
+                const cardName = `icon${i}`;
+                deck.push({ name: cardName }, { name: cardName });
+            }
+            
+            // Shuffle deck
+            deck.sort(() => Math.random() - 0.5);
+
+            const cards = deck.map(c => ({ name: c.name, matched: false }));
+            const memoryGame = {
+                cards,
+                flippedIndices: [],
+                matchedPairs: 0,
+                totalPairs: 18,
+                attempts: 0,
+                mode,
+                players,
+                allowedUserIds: players,
+                currentTurnPlayerIndex: 0,
+                scores: {}
+            };
+
+            const rows = [];
+            for (let i = 0; i < cards.length; i += 5) {
+                const row = new ActionRowBuilder();
+                for (let j = i; j < i + 5 && j < cards.length; j++) {
+                    row.addComponents(
+                        new ButtonBuilder()
+                            .setCustomId(`mem_${j}`)
+                            .setLabel('⬛')
+                            .setStyle(ButtonStyle.Secondary)
+                    );
+                }
+                rows.push(row);
+            }
+
+            let initDesc = mode === '2player' 
+                ? `👥 **2-Player Versus Avatar Trial!**\nParticipants: <@${players[0]}> vs <@${players[1]}>\n👉 First turn: <@${players[0]}>\n\nClick the ⬛ tiles to reveal icons and find all **18 matching pairs**!`
+                : `👤 **Solo Avatar Trial Mode!**\nPlayer: <@${players[0]}>\n\nFind all pairs in **20 attempts or fewer** to win Wan Shi Tong's Crown! 👑`;
+
+            const embed = new EmbedBuilder()
+                .setTitle('🦉 AVATAR TRIAL: WAN SHI TONG\'S MEMORY ARCHIVE')
+                .setColor('#70a1ff')
+                .setDescription(`*“Humans always think they know so much, yet your minds are easily tested by my archive. Prove your intellect by uncovering the hidden knowledge within these cards.”*\n\n` + initDesc);
+
+            const sentMsg = await message.reply({ embeds: [embed], components: rows });
+            activeMemoryGames.set(sentMsg.id, memoryGame);
+
+        } catch (err) {
+            // ERROR FLAGGING: If anything crashes, the bot will post the exact error here!
+            console.error('Memory Game Error:', err);
+            return message.reply(`❌ **Bot Error Caught:** \`${err.message}\``);
         }
-
-        let initDesc = mode === '2player' 
-            ? `👥 **2-Player Versus Avatar Trial!**\nParticipants: <@${players[0]}> vs <@${players[1]}>\n👉 First turn: <@${players[0]}>\n\nClick the ⬛ tiles to reveal icons and find all **18 matching pairs**!`
-            : `👤 **Solo Avatar Trial Mode!**\nPlayer: <@${players[0]}>\n\nFind all pairs in **20 attempts or fewer** to win Wan Shi Tong's Crown! 👑`;
-
-        const embed = new EmbedBuilder()
-            .setTitle('🦉 AVATAR TRIAL: WAN SHI TONG\'S MEMORY ARCHIVE')
-            .setColor('#70a1ff')
-            .setDescription(`*“Humans always think they know so much, yet your minds are easily tested by my archive. Prove your intellect by uncovering the hidden knowledge within these cards.”*\n\n` + initDesc);
-
-        const sentMsg = await message.reply({ embeds: [embed], components: rows });
-        activeMemoryGames.set(sentMsg.id, memoryGame);
         return;
     }
 });

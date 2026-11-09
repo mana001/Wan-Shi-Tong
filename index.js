@@ -1,5 +1,3 @@
-const fs = require('fs');
-const path = require('path');
 const { 
     Client, 
     GatewayIntentBits, 
@@ -48,6 +46,13 @@ const client = new Client({
 
 const activeMemoryGames = new Map();
 
+// Your 18 custom emojis split across 3 archives (6 pairs / 12 cards each)
+const ARCHIVE_ICONS = {
+    1: ['st', 'aimee', 'appaflyingbisona', 'cin', 'cyan', 'derek'],
+    2: ['dhruvi', 'dregun', 'fate', 'gray', 'joa', 'mardie'],
+    3: ['shinji', 'starr', 'vagg', 'yuji', 'zoe', 'butterfly']
+};
+
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
 });
@@ -59,17 +64,17 @@ client.on('interactionCreate', async interaction => {
     const memoryGame = activeMemoryGames.get(gameId);
 
     if (!memoryGame) {
-        return interaction.reply({ content: '⚠️ This memory game session has expired or ended.', ephemeral: true });
+        return interaction.reply({ content: '⚠️ This memory game session has expired or ended.', ephemeral: true, flags: 64 });
     }
 
     if (!memoryGame.allowedUserIds.includes(interaction.user.id)) {
-        return interaction.reply({ content: '⛔ You are not chosen to participate in this memory match session!', ephemeral: true });
+        return interaction.reply({ content: '⛔ You are not chosen to participate in this memory match session!', ephemeral: true, flags: 64 });
     }
 
     if (memoryGame.mode === '2player') {
         const currentTurnUserId = memoryGame.players[memoryGame.currentTurnPlayerIndex];
         if (interaction.user.id !== currentTurnUserId) {
-            return interaction.reply({ content: `⏳ It is not your turn! Waiting for <@${currentTurnUserId}>.`, ephemeral: true });
+            return interaction.reply({ content: `⏳ It is not your turn! Waiting for <@${currentTurnUserId}>.`, ephemeral: true, flags: 64 });
         }
     }
 
@@ -117,25 +122,21 @@ client.on('interactionCreate', async interaction => {
                     } else if (memoryGame.attempts >= 12) {
                         rankTitle = '💀 LOSER';
                         gifFile = './assets/loser.gif';
-                    } else {
-                        rankTitle = '🏆 WINNER';
-                        gifFile = './assets/winner.gif';
                     }
                 }
 
-                let winText = `🦉 **Wan Shi Tong's Archive #${memoryGame.archiveNum} Completed!**\n📊 **Total Attempts:** \`${memoryGame.attempts}\`\n\n🎯 **Rank Achieved:** **${rankTitle}**`;
+                let winText = `🦉 **=== WAN SHI TONG'S ARCHIVE #${memoryGame.archiveNum} COMPLETED ===**\n\n📊 **Total Attempts:** \`${memoryGame.attempts}\`\n🎯 **Achieved Rank:** **${rankTitle}**`;
                 
                 if (memoryGame.mode === '2player') {
                     const p1Score = memoryGame.scores[memoryGame.players[0]] || 0;
                     const p2Score = memoryGame.scores[memoryGame.players[1]] || 0;
                     let winner = p1Score > p2Score ? `<@${memoryGame.players[0]}>` : p2Score > p1Score ? `<@${memoryGame.players[1]}>` : 'It\'s a tie';
-                    winText = `🦉 **Wan Shi Tong's Archive #${memoryGame.archiveNum} Completed!**\n🏆 **Winner:** ${winner}!\nScores: <@${memoryGame.players[0]}> (${p1Score}) vs <@${memoryGame.players[1]}> (${p2Score})`;
+                    winText = `🦉 **=== VERSUS TRIAL ARCHIVE #${memoryGame.archiveNum} COMPLETED ===**\n\n🏆 **Winner:** ${winner}!\nScores: <@${memoryGame.players[0]}> (${p1Score}) vs <@${memoryGame.players[1]}> (${p2Score})`;
                 }
 
-                const gifAttachment = new AttachmentBuilder(gifFile);
                 return interaction.followUp({
                     content: winText,
-                    files: [gifAttachment]
+                    files: [new AttachmentBuilder(gifFile)]
                 }).catch(() => {
                     return interaction.followUp({ content: winText });
                 });
@@ -154,49 +155,61 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// Helper function to build 3 rows of 4 buttons with image/emoji indicator for revealed cards
 async function updateMemoryGrid(interaction, memoryGame, isWon) {
     const rows = [];
-    const attachments = [];
+    const guild = interaction.guild;
+    const cardLayout = [4, 4, 4]; // Exactly 3 rows of 4 buttons (12 cards total)
+    let cardIndex = 0;
 
-    for (let i = 0; i < memoryGame.cards.length; i += 4) {
+    for (const count of cardLayout) {
         const row = new ActionRowBuilder();
-        for (let j = i; j < i + 4 && j < memoryGame.cards.length; j++) {
-            const card = memoryGame.cards[j];
-            const button = new ButtonBuilder().setCustomId(`mem_${j}`);
+        for (let i = 0; i < count && cardIndex < memoryGame.cards.length; i++) {
+            const card = memoryGame.cards[cardIndex];
+            const button = new ButtonBuilder().setCustomId(`mem_${cardIndex}`);
+            const customEmoji = guild ? guild.emojis.cache.find(e => e.name.toLowerCase() === card.name.toLowerCase()) : null;
 
             if (card.matched) {
-                // Matched state: show label and green success
-                button.setLabel(card.name.toUpperCase()).setStyle(ButtonStyle.Success).setDisabled(true);
-            } else if (memoryGame.flippedIndices.includes(j)) {
-                // Flipped state: show icon name clearly or attach image preview if applicable
-                button.setLabel(card.name.toUpperCase()).setStyle(ButtonStyle.Primary);
+                if (customEmoji) {
+                    button.setEmoji(customEmoji.id).setStyle(ButtonStyle.Success).setDisabled(true);
+                } else {
+                    button.setLabel(`✅ ${card.name}`).setStyle(ButtonStyle.Success).setDisabled(true);
+                }
+            } else if (memoryGame.flippedIndices.includes(cardIndex)) {
+                if (customEmoji) {
+                    button.setEmoji(customEmoji.id).setStyle(ButtonStyle.Primary);
+                } else {
+                    button.setLabel(card.name).setStyle(ButtonStyle.Primary);
+                }
             } else {
-                // Hidden card back state (⬛ tile)
-                button.setLabel('⬛').setStyle(ButtonStyle.Secondary);
+                button.setEmoji('⬛').setStyle(ButtonStyle.Secondary);
             }
             row.addComponents(button);
+            cardIndex++;
         }
         rows.push(row);
     }
 
+    let statusHeader = isWon 
+        ? `🎉 **ARCHIVE CONQUERED SUCCESSFULLY!**` 
+        : `⚡ **ARCHIVE TRIAL IN PROGRESS** ⚡`;
+
     let descText = isWon 
-        ? `🎉 **Archive Completed in ${memoryGame.attempts} attempts!**` 
-        : `Match all 6 pairs! Live Attempts: **${memoryGame.attempts}**`;
+        ? `All 6 pairs uncovered in **${memoryGame.attempts}** attempts!` 
+        : `Match all **6 pairs** across the 3x4 grid!\n\n📈 **Live Attempt Count:** \`${memoryGame.attempts}\``;
 
     if (memoryGame.mode === '2player') {
         const p1 = memoryGame.players[0];
         const p2 = memoryGame.players[1];
         const activeTurnUser = memoryGame.players[memoryGame.currentTurnPlayerIndex];
-        descText += `\n\n👥 **Mode:** 2-Player Versus\n👉 Current Turn: <@${activeTurnUser}>\nScores — <@${p1}>: ${memoryGame.scores[p1] || 0} | <@${p2}>: ${memoryGame.scores[p2] || 0}`;
+        descText += `\n\n👥 **Versus Mode Active**\n👉 **Current Turn:** <@${activeTurnUser}>\n⚔️ Scores — <@${p1}>: ${memoryGame.scores[p1] || 0} | <@${p2}>: ${memoryGame.scores[p2] || 0}`;
     } else {
-        descText += `\n👤 **Player:** <@${memoryGame.players[0]}> (Solo Mode)`;
+        descText += `\n\n👤 **Scholar:** <@${memoryGame.players[0]}> (Solo Trial)`;
     }
 
     const embed = new EmbedBuilder()
-        .setTitle(`🦉 AVATAR TRIAL: WAN SHI TONG'S ARCHIVE #${memoryGame.archiveNum}`)
-        .setColor(isWon ? '#2ed573' : '#70a1ff')
-        .setDescription(`*“Humans always think they know so much, yet your minds are easily tested by my archive. Prove your intellect by uncovering the hidden knowledge within these cards.”*\n\n` + descText);
+        .setTitle(`🦉 [ ARCHIVE #${memoryGame.archiveNum} ] — SPIRIT LIBRARY TRIAL`)
+        .setColor(isWon ? '#2ed573' : '#ff4757')
+        .setDescription(`${statusHeader}\n\n*“Humans always think they know so much, yet your minds are easily tested by my archive. Prove your intellect.”*\n\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n${descText}\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬`);
 
     if (interaction.deferred || interaction.replied) {
         await interaction.editReply({ embeds: [embed], components: rows });
@@ -220,34 +233,31 @@ client.on('messageCreate', async message => {
         try {
             const args = content.replace('!memory', '').trim().split(/\s+/);
 
-            // --- CASE 1: !memory typed alone (Show Intro Only) ---
+            // --- CASE 1: !memory typed alone (Show Intro / Explanation Only) ---
             if (!args[0] || args[0] === '') {
                 const introEmbed = new EmbedBuilder()
-                    .setTitle('🦉 AVATAR TRIAL: WAN SHI TONG\'S MEMORY ARCHIVE')
-                    .setColor('#70a1ff')
-                    .setDescription(`*“Humans always think they know so much, yet your minds are easily tested by my archive. Prove your intellect by uncovering the hidden knowledge within these cards.”*\n\n` +
-                        `✨ **How to Play the Trial:**\n` +
-                        `Choose one of three secret archives and challenge yourself or a friend!\n\n` +
-                        `📌 **Commands:**\n` +
-                        `• Archive 1: \`!memory 1 @Player\`\n` +
-                        `• Archive 2: \`!memory 2 @Player\`\n` +
-                        `• Archive 3: \`!memory 3 @Player\`\n` +
-                        `*(You can also add a second player for Versus mode: \`!memory 1 @Player1 @Player2\`)*\n\n` +
-                        `🏆 **Solo Tiers:**\n` +
-                        `• < 6 attempts ➔ **LEGEND** (\`legend.gif\`)\n` +
-                        `• = 6 attempts ➔ **WINNER** (\`winner.gif\`)\n` +
-                        `• 12+ attempts ➔ **LOSER** (\`loser.gif\`)`);
+                    .setTitle('🦉 AVATAR TRIAL: WAN SHI TONG\'S MEMORY ARCHIVE 🦉')
+                    .setColor('#ffa502')
+                    .setDescription(`*“Humans always think they know so much, yet your minds are easily tested by my vast library archives. Prove your intellect by uncovering the hidden knowledge.”*\n\n` +
+                        `✨ **How to Access the Archives:**\n` +
+                        `Select one of the three archives and challenge yourself or a friend!\n\n` +
+                        `📌 **Deployment Commands:**\n` +
+                        `• **Archive 1:** \`!memory 1 @Player\`\n` +
+                        `• **Archive 2:** \`!memory 2 @Player\`\n` +
+                        `• **Archive 3:** \`!memory 3 @Player\`\n` +
+                        `*(For 2-Player Versus: \`!memory 1 @Player1 @Player2\`)*\n\n` +
+                        `🏆 **Scholar Ranking Tiers:**\n` +
+                        `• **< 6 attempts** ➔ **LEGEND** (\`legend.gif\`)\n` +
+                        `• **= 6 attempts** ➔ **WINNER** (\`winner.gif\`)\n` +
+                        `• **12+ attempts** ➔ **LOSER** (\`loser.gif\`)`);
 
                 return message.reply({ embeds: [introEmbed] });
             }
 
-            // --- CASE 2: !memory (number) @Player (Start Game) ---
+            // --- CASE 2: !memory (number) @Player (Start Game Board Only) ---
             let archiveNum = 1;
-            let playerArgsIndex = 0;
-
             if (['1', '2', '3'].includes(args[0])) {
                 archiveNum = parseInt(args[0]);
-                playerArgsIndex = 1;
             }
 
             let players = Array.from(message.mentions.users.keys());
@@ -264,16 +274,12 @@ client.on('messageCreate', async message => {
 
             const mode = players.length >= 2 ? '2player' : 'solo';
 
-            let startIndex = 0;
-            let endIndex = 5;
-            if (archiveNum === 2) { startIndex = 6; endIndex = 11; }
-            if (archiveNum === 3) { startIndex = 12; endIndex = 17; }
-
+            // Grab the 6 custom icons for the selected archive (12 cards total / 6 pairs)
+            const iconList = ARCHIVE_ICONS[archiveNum] || ARCHIVE_ICONS[1];
             let deck = [];
-            for (let i = startIndex; i <= endIndex; i++) {
-                const cardName = `icon${i}`;
-                deck.push({ name: cardName }, { name: cardName });
-            }
+            iconList.forEach(iconName => {
+                deck.push({ name: iconName }, { name: iconName });
+            });
             
             deck.sort(() => Math.random() - 0.5);
 
@@ -282,7 +288,7 @@ client.on('messageCreate', async message => {
                 cards,
                 flippedIndices: [],
                 matchedPairs: 0,
-                totalPairs: 6,
+                totalPairs: 6, // 6 pairs (12 cards total)
                 attempts: 0,
                 archiveNum,
                 mode,
@@ -293,27 +299,31 @@ client.on('messageCreate', async message => {
             };
 
             const rows = [];
-            for (let i = 0; i < cards.length; i += 4) {
+            const cardLayout = [4, 4, 4]; // Exactly 3 rows of 4 buttons (12 cards total)
+            let cardIndex = 0;
+
+            for (const count of cardLayout) {
                 const row = new ActionRowBuilder();
-                for (let j = i; j < i + 4 && j < cards.length; j++) {
+                for (let i = 0; i < count && cardIndex < cards.length; i++) {
                     row.addComponents(
                         new ButtonBuilder()
-                            .setCustomId(`mem_${j}`)
-                            .setLabel('⬛')
+                            .setCustomId(`mem_${cardIndex}`)
+                            .setEmoji('⬛')
                             .setStyle(ButtonStyle.Secondary)
                     );
+                    cardIndex++;
                 }
                 rows.push(row);
             }
 
             let initDesc = mode === '2player' 
-                ? `👥 **2-Player Versus Trial (Archive #${archiveNum})!**\nParticipants: <@${players[0]}> vs <@${players[1]}>\n👉 First turn: <@${players[0]}>\n\nClick the ⬛ tiles to find all **6 matching pairs**!`
-                : `👤 **Solo Trial Mode (Archive #${archiveNum})!**\nPlayer: <@${players[0]}>\n\nFind all 6 pairs in your 3x4 archive grid! 🦉\n*(<6 attempts = LEGEND | 6 attempts = WINNER | 12+ attempts = LOSER)*`;
+                ? `👥 **2-Player Versus Trial (Archive #${archiveNum})!**\nParticipants: <@${players[0]}> vs <@${players[1]}>\n👉 **First Turn:** <@${players[0]}>\n\nClick the ⬛ tiles to find all **6 matching pairs** across the 3x4 grid!`
+                : `👤 **Solo Trial Mode (Archive #${archiveNum})!**\nScholar: <@${players[0]}>\n\nUncover all 6 pairs in your 3x4 archive grid! 🦉\n*(<6 attempts = LEGEND | 6 attempts = WINNER | 12+ attempts = LOSER)*`;
 
             const embed = new EmbedBuilder()
-                .setTitle(`🦉 AVATAR TRIAL: WAN SHI TONG'S ARCHIVE #${archiveNum}`)
-                .setColor('#70a1ff')
-                .setDescription(`*“Humans always think they know so much, yet your minds are easily tested by my archive. Prove your intellect by uncovering the hidden knowledge within these cards.”*\n\n` + initDesc);
+                .setTitle(`🦉 [ ARCHIVE #${archiveNum} ] — SPIRIT LIBRARY TRIAL`)
+                .setColor('#ff4757')
+                .setDescription(`⚡ **ARCHIVE TRIAL READY** ⚡\n\n*“Humans always think they know so much, yet your minds are easily tested by my archive. Prove your intellect.”*\n\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n${initDesc}\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬`);
 
             const sentMsg = await message.reply({ embeds: [embed], components: rows });
             activeMemoryGames.set(sentMsg.id, memoryGame);

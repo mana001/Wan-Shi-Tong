@@ -196,17 +196,16 @@ client.on('messageCreate', async message => {
     const isHost = message.author.username === '0ladybunny';
 
     // --- MEMORY GAME START COMMAND ---
-    // Solo: !memory @Player
-    // Versus: !memory @Player1 @Player2
     if (contentLower.startsWith('!memory')) {
         if (!isHost) return message.reply('⛔ Only **0ladybunny** can start Wan Shi Tong\'s memory trial.');
 
-        const mentions = message.mentions.users;
-        if (mentions.size === 0) {
-            return message.reply('⚠️ Please mention the player(s) for the Avatar Trial!\n*Solo:* `!memory @Player`\n*Versus:* `!memory @Player1 @Player2`');
+        // Grab all mentioned users reliably (works for desktop & mobile)
+        const players = Array.from(message.mentions.users.keys());
+        
+        if (players.length === 0) {
+            return message.reply('⚠️ Please mention at least one player for the Avatar Trial!\n*Solo:* `!memory @Player`\n*Versus:* `!memory @Player1 @Player2`');
         }
 
-        const players = Array.from(mentions.keys());
         const mode = players.length >= 2 ? '2player' : 'solo';
 
         // Build deck using icon0 through icon17 (two of each for 36 cards total)

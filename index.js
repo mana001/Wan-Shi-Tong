@@ -115,10 +115,13 @@ client.on('interactionCreate', async interaction => {
                 if (memoryGame.mode === 'solo') {
                     if (memoryGame.attempts < 6) {
                         rankTitle = '🌟 LEGEND';
+                        gifFile = './assets/legend.gif';
                     } else if (memoryGame.attempts === 6) {
                         rankTitle = '🏆 WINNER';
+                        gifFile = './assets/winner.gif';
                     } else if (memoryGame.attempts >= 12) {
                         rankTitle = '💀 LOSER';
+                        gifFile = './assets/loser.gif';
                     }
                 }
 
@@ -232,9 +235,9 @@ client.on('messageCreate', async message => {
                         `✨ **How to Access the Archives:**\n` +
                         `Select one of the three archives and challenge yourself or a friend!\n\n` +
                         `🏆 **Scholar Ranking Tiers:**\n` +
-                        `• **< 6 attempts** ➔ **LEGEND** (\`legend.gif\`)\n` +
-                        `• **= 6 attempts** ➔ **WINNER** (\`winner.gif\`)\n` +
-                        `• **12+ attempts** ➔ **LOSER** (\`loser.gif\`)`)
+                        `• **< 6 attempts** ➔ **LEGEND** (\`uhm\`)\n` +
+                        `• **= 6 attempts** ➔ **WINNER** (\`uhm\`)\n` +
+                        `• **12+ attempts** ➔ **LOSER** (\`uhm\`)`)
                     .setImage('attachment://intro.jpg');
 
                 const introAttachment = new AttachmentBuilder('./assets/intro.jpg');
